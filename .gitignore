@@ -1,0 +1,10 @@
+# Mac
+.DS_Store
+
+# Elm
+elm-stuff
+repl-temp-*
+
+# External Codes
+src/Scene3d.elm
+src/Scene3d
