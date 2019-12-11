@@ -57,6 +57,7 @@ view model =
         , whiteBalance = Chromaticity.daylight
         }
         [ aluminumSphere
+        , aluminumBlock
         , floor
         ]
 
@@ -87,6 +88,12 @@ floorMesh =
     Shape.block (meters 8) (meters 8) (meters 0.2)
 
 
+blockMesh : Mesh World (Triangles WithNormals NoUV NoTangents ShadowsEnabled)
+blockMesh =
+    Shape.block (meters 0.9) (meters 0.9) (meters 0.9)
+        |> Mesh.enableShadows
+
+
 floor : Drawable World
 floor =
     Drawable.physical whitePlastic floorMesh
@@ -98,6 +105,13 @@ aluminumSphere =
     Drawable.physical aluminum sphereMesh
         |> Drawable.withShadow sphereMesh
         |> Drawable.translateBy (Vector3d.meters 0 0 -0.5)
+
+
+aluminumBlock : Drawable World
+aluminumBlock =
+    Drawable.physical aluminum blockMesh
+        |> Drawable.withShadow blockMesh
+        |> Drawable.translateBy (Vector3d.meters 0 0 2)
 
 
 aluminum : Material
