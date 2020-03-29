@@ -2,7 +2,9 @@
 
 Try [elm-3d-scene](https://github.com/ianmackenzie/elm-3d-scene), which is a work-in-progress Elm package.
 
-[Demo](https://hahnah.github.io/try-elm-3d-scene/static.html)
+[Demo](https://hahnah.github.io/try-elm-3d-scene/dynamic2.html) 
+
+![Demo preview](demo.gif)
 
 ## Preparation
 
