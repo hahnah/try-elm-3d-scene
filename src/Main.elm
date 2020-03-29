@@ -143,7 +143,7 @@ aluminumBlock =
     Drawable.physical aluminum blockMesh
         |> Drawable.withShadow blockMesh
         |> Body.block (Block3d.centeredOn Frame3d.atOrigin ( meters 0.9, meters 0.9, meters 0.9 ))
-        |> Body.translateBy (Vector3d.meters 0 0 2)
+        |> Body.translateBy (Vector3d.meters 0.1 0 2)
         |> Body.setBehavior (Body.dynamic (Mass.kilograms 5))
 
 
