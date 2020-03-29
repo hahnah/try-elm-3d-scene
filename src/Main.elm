@@ -1,15 +1,25 @@
 module Main exposing (main)
 
+import Acceleration
 import Angle
 import Axis3d
+import Block3d
 import Browser
+import Browser.Events
 import Camera3d exposing (Camera3d)
 import Color
 import Direction3d
+import Duration
+import Frame3d
 import Html exposing (Html)
 import Illuminance exposing (lux)
 import Length exposing (Meters, meters)
+import List
 import Luminance
+import Mass
+import Physics.Body as Body exposing (Body)
+import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
+import Physics.World as World exposing (World)
 import Pixels exposing (pixels)
 import Point3d
 import Scene3d
@@ -19,20 +29,17 @@ import Scene3d.Exposure as Exposure
 import Scene3d.Light as Light exposing (AmbientLighting, Light)
 import Scene3d.Mesh as Mesh exposing (Mesh, NoTangents, NoUV, ShadowsDisabled, ShadowsEnabled, Triangles, WithNormals)
 import Scene3d.Shape as Shape
+import Sphere3d
 import Vector3d
 import Viewpoint3d
 
 
 type alias Model =
-    {}
+    { world : World (Drawable BodyCoordinates) }
 
 
 type Msg
-    = NoMsg
-
-
-type World
-    = World
+    = Tick Float
 
 
 main : Program () Model Msg
@@ -47,6 +54,11 @@ main =
 
 view : Model -> Html Msg
 view model =
+    let
+        drawables : List (Drawable WorldCoordinates)
+        drawables =
+            List.map getTransformedDrawable (World.getBodies model.world)
+    in
     Scene3d.render []
         { ambientLighting = Just ambientLighting
         , lights = Scene3d.oneLight sunlight { castsShadows = True }
@@ -56,62 +68,83 @@ view model =
         , exposure = Exposure.fromEv100 14
         , whiteBalance = Chromaticity.daylight
         }
-        [ aluminumSphere
-        , aluminumBlock
-        , floor
-        ]
+        drawables
 
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( {}, Cmd.none )
+    ( { world = initialWorld }
+    , Cmd.none
+    )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    ( model, Cmd.none )
+    case msg of
+        Tick _ ->
+            ( { world = World.simulate (Duration.seconds (1 / 60)) model.world }
+            , Cmd.none
+            )
 
 
 subscriptions : Model -> Sub Msg
 subscriptions _ =
-    Sub.none
+    Browser.Events.onAnimationFrameDelta Tick
 
 
-sphereMesh : Mesh World (Triangles WithNormals NoUV NoTangents ShadowsEnabled)
+initialWorld : World (Drawable BodyCoordinates)
+initialWorld =
+    let
+        gravity =
+            Acceleration.metersPerSecondSquared 9.80665
+    in
+    World.empty
+        |> World.setGravity gravity Direction3d.negativeZ
+        |> World.add floor
+        |> World.add aluminumSphere
+        |> World.add aluminumBlock
+
+
+floorMesh : Mesh BodyCoordinates (Triangles WithNormals NoUV NoTangents ShadowsDisabled)
+floorMesh =
+    Shape.block (meters 8) (meters 8) (meters 0.2)
+
+
+sphereMesh : Mesh BodyCoordinates (Triangles WithNormals NoUV NoTangents ShadowsEnabled)
 sphereMesh =
     Shape.sphere { radius = meters 0.8, subdivisions = 72 }
         |> Mesh.enableShadows
 
 
-floorMesh : Mesh World (Triangles WithNormals NoUV NoTangents ShadowsDisabled)
-floorMesh =
-    Shape.block (meters 8) (meters 8) (meters 0.2)
-
-
-blockMesh : Mesh World (Triangles WithNormals NoUV NoTangents ShadowsEnabled)
+blockMesh : Mesh BodyCoordinates (Triangles WithNormals NoUV NoTangents ShadowsEnabled)
 blockMesh =
     Shape.block (meters 0.9) (meters 0.9) (meters 0.9)
         |> Mesh.enableShadows
 
 
-floor : Drawable World
+floor : Body (Drawable BodyCoordinates)
 floor =
     Drawable.physical whitePlastic floorMesh
-        |> Drawable.translateBy (Vector3d.meters 0 0 -4)
+        |> Body.plane
+        |> Body.translateBy (Vector3d.meters 0 0 -4)
 
 
-aluminumSphere : Drawable World
+aluminumSphere : Body (Drawable BodyCoordinates)
 aluminumSphere =
     Drawable.physical aluminum sphereMesh
         |> Drawable.withShadow sphereMesh
-        |> Drawable.translateBy (Vector3d.meters 0 0 -0.5)
+        |> Body.sphere (Sphere3d.atOrigin (meters 0.8))
+        |> Body.translateBy (Vector3d.meters 0 0 -0.5)
+        |> Body.setBehavior (Body.dynamic (Mass.kilograms 2.5))
 
 
-aluminumBlock : Drawable World
+aluminumBlock : Body (Drawable BodyCoordinates)
 aluminumBlock =
     Drawable.physical aluminum blockMesh
         |> Drawable.withShadow blockMesh
-        |> Drawable.translateBy (Vector3d.meters 0 0 2)
+        |> Body.block (Block3d.centeredOn Frame3d.atOrigin ( meters 0.9, meters 0.9, meters 0.9 ))
+        |> Body.translateBy (Vector3d.meters 0 0 2)
+        |> Body.setBehavior (Body.dynamic (Mass.kilograms 5))
 
 
 aluminum : Material
@@ -124,7 +157,7 @@ whitePlastic =
     { baseColor = Color.white, roughness = 0.25, metallic = False }
 
 
-camera : Camera3d Meters World
+camera : Camera3d Meters WorldCoordinates
 camera =
     Camera3d.perspective
         { viewpoint =
@@ -138,7 +171,7 @@ camera =
         }
 
 
-sunlight : Light World
+sunlight : Light WorldCoordinates
 sunlight =
     Light.directional
         Chromaticity.daylight
@@ -148,10 +181,14 @@ sunlight =
         )
 
 
-ambientLighting : AmbientLighting World
+ambientLighting : AmbientLighting WorldCoordinates
 ambientLighting =
     Light.overcast
         { zenithDirection = Direction3d.positiveZ
         , zenithLuminance = Luminance.nits 3000
         , chromaticity = Chromaticity.daylight
         }
+
+getTransformedDrawable : Body (Drawable BodyCoordinates) -> Drawable WorldCoordinates
+getTransformedDrawable body =
+    Drawable.placeIn (Body.getFrame3d body) (Body.getData body)
